@@ -68,7 +68,8 @@ class SandboxConfig:
 
     Not all backends honour every field:
       - cpu / memory_mb: Daytona, Tensorlake, Modal, Docker, RunPod, boxd
-        (rounded up to the smallest boxd machine size)
+        (rounded up to the smallest boxd machine size), Orble (rounded up to
+        2, 4 or 8 vCPUs with 2 GiB of RAM per vCPU)
       - gpu: Modal (e.g. ``"L4"`` or ``"H100:2"``), RunPod (exact GPU
         type ID, optionally followed by a count, e.g.
         ``"NVIDIA H100 80GB HBM3:2"``)
@@ -80,16 +81,16 @@ class SandboxConfig:
         build), Modal (``Image.from_dockerfile``).  Local paths; the context
         defaults to the Dockerfile's directory.  Mutually exclusive with
         ``image`` and ``snapshot_id``.
-      - template: E2B, Novita (Code Interpreter compatible), and RunPod
+      - template: E2B, Novita (Code Interpreter compatible), Orble, and RunPod
       - app_name: Modal only
       - allow_internet: legacy best-effort flag, mapped by Docker,
-        Tensorlake and boxd, rejected when false on RunPod, ignored
+        Tensorlake and boxd, rejected when false on RunPod and Orble, ignored
         elsewhere.  Prefer ``network``.  When ``network`` is set this is
         derived from it.
       - network: enforced egress policy (``NetworkPolicy``). Daytona,
         Modal and boxd support every mode, Docker and Tensorlake ``public``
         and ``none``; anything a backend cannot enforce raises.
-      - snapshot_id: Tensorlake, Modal, boxd
+      - snapshot_id: Tensorlake, Modal, boxd, Orble
       - env_vars: all backends (Monty exposes only the supplied mapping)
       - timeout_secs: all backends (local and ray use subprocess timeout)
       - timeout_secs_explicit: whether ``timeout_secs`` was supplied by the
@@ -99,12 +100,13 @@ class SandboxConfig:
         delete_after) and a value nobody asked for must not silently cap a
         sandbox's lifetime.
       - workdir: Local, Safehouse (host directory used as the sandbox root),
-                 Tensorlake, Daytona, RunPod, boxd (command working directory;
+                 Tensorlake, Daytona, RunPod, boxd, Orble (command working directory;
                  Tensorlake defaults to /tmp, RunPod to /workspace, boxd to
-                 /home/boxd); Monty uses an absolute in-memory virtual path.
+                 /home/boxd, Orble to /home/user); Monty uses an absolute in-memory virtual path.
       - backend_options: provider-specific escape hatch, merged last into the
         backend's underlying create call (Docker containers.run, Modal
-        Sandbox.create, E2B Sandbox.create, Novita code_interpreter.create,
+        Sandbox.create, E2B and Orble Sandbox.create, Novita
+        code_interpreter.create,
         Tensorlake create_and_connect,
         Daytona create params, RunPod REST create payload, boxd
         machines.create). Monty accepts only its documented resource/output

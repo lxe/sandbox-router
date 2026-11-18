@@ -11,7 +11,7 @@ dependencies = [
 authors = [
     { name = "Bespoke Labs" },
 ]
-keywords = ["sandbox", "cloud", "daytona", "modal", "runpod", "e2b", "tensorlake", "docker", "ray", "safehouse", "boxd", "gcp-batch", "bespokelabs"]
+keywords = ["sandbox", "cloud", "daytona", "modal", "runpod", "e2b", "tensorlake", "docker", "ray", "safehouse", "boxd", "orble", "gcp-batch", "bespokelabs"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -30,6 +30,8 @@ modal = ["modal>=0.60.0"]
 e2b = ["e2b-code-interpreter>=1.0.0"]
 # 2.1.3 is the tested public Code Interpreter create/connect baseline.
 novita = ["novita-sandbox>=2.1.3,<2.2"]
+# Orble serves E2B's API; 2.64.0 is the tested baseline (fork, snapshots).
+orble = ["e2b>=2.64.0,<3; python_version >= '3.11'"]
 docker = ["docker>=7.0.0"]
 monty = ["pydantic-monty>=1.5.0,<2"]
 ray = ["ray>=2.0.0"]
@@ -42,6 +44,7 @@ all = [
     "modal>=0.60.0",
     "e2b-code-interpreter>=1.0.0",
     "novita-sandbox>=2.1.3,<2.2",
+    "e2b>=2.64.0,<3; python_version >= '3.11'",
     "docker>=7.0.0",
     "pydantic-monty>=1.5.0,<2",
     "ray>=2.0.0",

@@ -11,6 +11,7 @@ Provider requirements, Monty usage, adapter capabilities, and authentication set
 - [Cloud](#cloud)
 - [Monty: local Python execution](#monty-local-python-execution)
 - [Novita: Code Interpreter](#novita-code-interpreter)
+- [Orble](#orble)
 - [Feature Support Matrix](#feature-support-matrix)
 - [Environment Variables](#environment-variables)
 
@@ -40,6 +41,7 @@ the runtime requirements listed below.
 | [E2B](https://e2b.dev) | `[e2b]` | `E2B_API_KEY` |
 | [Novita](https://novita.ai) | `[novita]` | `NOVITA_API_KEY` |
 | [boxd](https://boxd.sh) | `[boxd]` | `BOXD_API_KEY` |
+| [Orble](https://orble.tech) | `[orble]` | `ORBLE_API_KEY` |
 | [Google Cloud Batch](https://cloud.google.com/batch) (jobs only) | `[gcp-batch]` | Application Default Credentials |
 
 You only need to install the backend you use. The others are lazily imported.
@@ -249,6 +251,111 @@ unverified and outside this acceptance scope. Other providers' cloud tests
 were not executed. Do not collect `tests/test_regression.py` for Novita-only
 validation: its collection can create unrelated provider resources.
 
+## Orble
+
+Install `bespokelabs-sandbox[orble]` (Python 3.11 or newer, as e2b 2.64 needs)
+and set `ORBLE_API_KEY` to an API key from the [Orble
+dashboard](https://orble.tech). Orble serves E2B's sandbox API, so this adapter
+drives it with the stock `e2b` SDK. It is a separate backend from E2B: it reads
+`ORBLE_API_KEY` and the optional `ORBLE_DOMAIN` (default `orble.tech`) and
+passes both to every SDK call, so `E2B_API_KEY` and `E2B_DOMAIN` in the same
+process are not used.
+
+```python
+from bespokelabs.sandbox import Sandbox
+
+with Sandbox("orble", cpu=4, timeout_secs=1800) as sb:
+    print(sb.execute_code("print(6 * 7)").stdout)
+    sb.execute_command("docker", ["run", "--rm", "hello-world"])
+```
+
+Every sandbox boots Orble's image: Debian with Python, Node.js, Docker, Claude
+Code and Codex. `image=` and `dockerfile=` are rejected; pass `template=` with
+the name of one of your Orble snapshots, or `snapshot_id=`. `cpu` and
+`memory_mb` pick the smallest box that fits them: 2 vCPU and 4 GiB, 4 vCPU and
+8 GiB, or 8 vCPU and 16 GiB. Larger requests and `gpu=` raise
+`FeatureNotSupportedError`. Every box has a 64 GiB disk, and `disk_mb` above
+that is rejected. The `claude-code`, `codex` and `claude-code-codex` presets
+check the installed agents instead of installing them.
+
+The adapter forwards `timeout_secs` as `timeout`, `env_vars` as `envs`, and the
+box size as `cpu_count`; `backend_options` merge last into `Sandbox.create`. As
+on E2B, Orble deletes a sandbox when its timeout runs out. With
+`backend_options={"lifecycle": {"on_timeout": "pause"}}` Orble suspends it
+instead, and a suspended sandbox is billed for its storage only.
+
+`execute_code` runs the language's interpreter with `-c` (`python` runs
+`python3`, `javascript` runs `node`), so each call is a new process.
+`execute_command` has no 60-second limit; the sandbox's timeout still applies.
+`workdir` is created at startup and is the working directory of every command;
+otherwise commands run in `/home/user`. `expose_port()` returns an HTTPS URL and
+an `e2b-traffic-access-token` header, and Orble refuses requests without it.
+Bind the service to `0.0.0.0`.
+
+`snapshot()` saves the sandbox's memory and disk without stopping it.
+Sandboxes created with `snapshot_id=` start with its files and with the
+processes that were running. Snapshots are billed as storage until you delete
+them with the e2b SDK: `Sandbox.delete_snapshot(snapshot_id, api_key=...,
+domain="orble.tech")`.
+
+Only `network=` mode `public` is supported. `allow_internet=False` and the
+`none` and `allowlist` modes are rejected, because this adapter does not map
+Orble's egress rules.
+
+### Reattachment, forks and suspend
+
+State contains the sandbox ID, plus the domain when it is not `orble.tech` and
+the workdir when one is set; it holds no credentials. `Sandbox.resume(state)`
+calls the SDK's `connect`, which wakes a suspended sandbox with its memory and
+running processes intact.
+
+This library has no fork or suspend call. Orble supports both through the e2b
+SDK, and the forks can then be reattached as router sandboxes:
+
+```python
+import os
+
+from e2b import Sandbox as E2BSandbox
+
+from bespokelabs.sandbox import Sandbox, SandboxClient, SandboxSessionState
+
+orble = {"api_key": os.environ["ORBLE_API_KEY"], "domain": "orble.tech"}
+sb = Sandbox("orble")
+native = E2BSandbox.connect(sb.provider_resource_id, **orble)
+forks = [
+    SandboxClient("orble").resume(
+        SandboxSessionState(backend="orble", data={"sandbox_id": f.sandbox_id})
+    )
+    for f in native.fork(count=2)
+]
+native.pause()  # suspend; Sandbox.resume(sb.session_state()) wakes it
+```
+
+Each fork starts with the source's files and running processes, and the source
+is not stopped.
+
+### Dedicated tests
+
+Offline, from a checkout installed with `[dev,orble]`:
+
+```bash
+python -m pytest -q tests/test_orble_backend.py
+```
+
+The live tests create and destroy their own sandboxes and snapshots, and are
+skipped unless you opt in:
+
+```bash
+ORBLE_RUN_E2E=1 ORBLE_API_KEY=your_key python -m pytest -q tests/test_orble_e2e.py
+```
+
+They cover commands and code, binary files and transfers, `workdir`,
+`resource_usage()`, an exposed port with and without its token, a 65-second
+command, Docker, snapshots, two forks, suspend and resume, suspend on timeout,
+and the agent presets. On 2026-11-18, with Python 3.13 and e2b 2.64.0, the
+offline tests passed (35 passed) and the live tests passed (7 passed), as did
+`tests/test_regression.py -k Orble` (10 passed).
+
 ## Feature Support Matrix
 
 This table describes the adapters in this repository, not every feature offered
@@ -257,27 +364,28 @@ accepts `-c`; use shell commands for other language runtimes.
 
 Monty's Python-only capability set is described [above](#monty-local-python-execution).
 Novita's reattachment limitations are covered in the
-[Novita section](#novita-code-interpreter).
+[Novita section](#novita-code-interpreter), and Orble's forks and suspend in the
+[Orble section](#orble).
 
-| Feature | Local | Safehouse | Docker | Ray | Daytona | Tensorlake | Modal | RunPod | E2B | Novita | boxd |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| `execute_code` | Interpreter | Interpreter | Interpreter | Interpreter | Python | Interpreter | Interpreter | Interpreter | Python | Python | Interpreter |
-| `execute_command` | Shell | Shell | Shell | Shell | Shell | Shell | Shell | SSH | Shell | Shell | Shell |
-| `list_files` | Native | Native | `find` / `ls` | Native | Native SDK | via `ls` | Native SDK | via SSH | Native SDK | Native SDK | Native SDK |
-| `read_file` | Native | Native | `get_archive` | Native | Native SDK | via `cat` | Native SDK | via SSH | Native SDK | Binary SDK | Native SDK |
-| `write_file` | Native | Native | `put_archive` | Native | Native SDK | via base64 | Native SDK | via SSH | Native SDK | Native SDK | Native SDK |
-| `upload_file` | `shutil.copy` | `shutil.copy` | `put_archive` | Actor RPC | Native SDK | via base64 | Native SDK | via SSH | Native SDK | Whole file | Native SDK |
-| `download_file` | `shutil.copy` | `shutil.copy` | `get_archive` | Actor RPC | Native SDK | via base64 | Native SDK | via SSH | Native SDK | Whole file | Native SDK |
-| `snapshot` | No | No | Yes | No | No | Yes | Yes | No | No | No | Yes |
-| `dockerfile=` | Rejected | Rejected | Local build | Rejected | Declarative build | Rejected | `Image.from_dockerfile` | Rejected | Rejected | Rejected | Rejected |
-| `expose_port` | No | No | Published port | No | Preview link + token | No | Tunnel | No | `get_host` | `get_host` + token | Public HTTPS proxy |
-| Resource limits | No | No | cpu, memory | cpu (Ray) | cpu, memory, disk | cpu, memory | cpu, memory, gpu | cpu, memory, disk, gpu | Tier-based | Template-defined | cpu, memory (size class) |
-| `allow_internet=False` (legacy, prefer `network=`) | Ignored | Ignored | Yes | Ignored | Ignored | Yes | Ignored | Rejected | Ignored | Ignored | Yes |
-| `network=` modes | public | public | public, none | public | all | public, none | all | public | public | public | all |
-| `set_network()` | No | No | No | No | Yes | No | public, allowlist | No | No | No | Yes |
-| Isolation | Process-level | macOS `sandbox-exec` | Container | Process | Full VM | Container | Container | Container | Full VM | MicroVM | Full VM |
-| `gpu=` reservation | No | No | No | No | No | No | Yes | Yes | No | No | No |
-| Needs install | Nothing | `safehouse` CLI | Docker daemon | `ray` | API key | `tl login` | API key | API key + OpenSSH | API key | API key | API key |
+| Feature | Local | Safehouse | Docker | Ray | Daytona | Tensorlake | Modal | RunPod | E2B | Novita | boxd | Orble |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `execute_code` | Interpreter | Interpreter | Interpreter | Interpreter | Python | Interpreter | Interpreter | Interpreter | Python | Python | Interpreter | Interpreter |
+| `execute_command` | Shell | Shell | Shell | Shell | Shell | Shell | Shell | SSH | Shell | Shell | Shell | Shell |
+| `list_files` | Native | Native | `find` / `ls` | Native | Native SDK | via `ls` | Native SDK | via SSH | Native SDK | Native SDK | Native SDK | Native SDK |
+| `read_file` | Native | Native | `get_archive` | Native | Native SDK | via `cat` | Native SDK | via SSH | Native SDK | Binary SDK | Native SDK | Binary SDK |
+| `write_file` | Native | Native | `put_archive` | Native | Native SDK | via base64 | Native SDK | via SSH | Native SDK | Native SDK | Native SDK | Native SDK |
+| `upload_file` | `shutil.copy` | `shutil.copy` | `put_archive` | Actor RPC | Native SDK | via base64 | Native SDK | via SSH | Native SDK | Whole file | Native SDK | Whole file |
+| `download_file` | `shutil.copy` | `shutil.copy` | `get_archive` | Actor RPC | Native SDK | via base64 | Native SDK | via SSH | Native SDK | Whole file | Native SDK | Whole file |
+| `snapshot` | No | No | Yes | No | No | Yes | Yes | No | No | No | Yes | Yes |
+| `dockerfile=` | Rejected | Rejected | Local build | Rejected | Declarative build | Rejected | `Image.from_dockerfile` | Rejected | Rejected | Rejected | Rejected | Rejected |
+| `expose_port` | No | No | Published port | No | Preview link + token | No | Tunnel | No | `get_host` | `get_host` + token | Public HTTPS proxy | `get_host` + token |
+| Resource limits | No | No | cpu, memory | cpu (Ray) | cpu, memory, disk | cpu, memory | cpu, memory, gpu | cpu, memory, disk, gpu | Tier-based | Template-defined | cpu, memory (size class) | cpu, memory (size class) |
+| `allow_internet=False` (legacy, prefer `network=`) | Ignored | Ignored | Yes | Ignored | Ignored | Yes | Ignored | Rejected | Ignored | Ignored | Yes | Rejected |
+| `network=` modes | public | public | public, none | public | all | public, none | all | public | public | public | all | public |
+| `set_network()` | No | No | No | No | Yes | No | public, allowlist | No | No | No | Yes | No |
+| Isolation | Process-level | macOS `sandbox-exec` | Container | Process | Full VM | Container | Container | Container | Full VM | MicroVM | Full VM | Full VM |
+| `gpu=` reservation | No | No | No | No | No | No | Yes | Yes | No | No | No | No |
+| Needs install | Nothing | `safehouse` CLI | Docker daemon | `ray` | API key | `tl login` | API key | API key + OpenSSH | API key | API key | API key | API key |
 
 Daytona applies CPU/RAM/disk overrides when creating from `image`; the snapshot
 creation path uses the snapshot's resources. RunPod CPU/RAM values are minimums
@@ -326,6 +434,10 @@ export NOVITA_API_KEY=your_key
 # boxd
 export BOXD_API_KEY=your_key
 export BOXD_ORG=your_org      # optional; picks the org for a BOXD_TOKEN session
+
+# Orble
+export ORBLE_API_KEY=your_key
+# ORBLE_DOMAIN is optional; it defaults to orble.tech.
 
 # Google Cloud Batch (jobs) — Application Default Credentials
 gcloud auth application-default login

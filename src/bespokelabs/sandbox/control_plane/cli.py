@@ -16,6 +16,7 @@ _PROVIDER_ENVIRONMENT = {
     "runpod": ("RUNPOD_API_KEY",),
     "tensorlake": ("TENSORLAKE_API_KEY",),
     "boxd": ("BOXD_API_KEY",),
+    "orble": ("ORBLE_API_KEY",),
 }
 
 

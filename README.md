@@ -184,6 +184,7 @@ the runtime requirements listed below.
 | [E2B](https://e2b.dev) | `[e2b]` | `E2B_API_KEY` |
 | [Novita](https://novita.ai) | `[novita]` | `NOVITA_API_KEY` |
 | [boxd](https://boxd.sh) | `[boxd]` | `BOXD_API_KEY` |
+| [Orble](https://orble.tech) | `[orble]` | `ORBLE_API_KEY` |
 | [Google Cloud Batch](https://cloud.google.com/batch) (jobs only) | `[gcp-batch]` | Application Default Credentials |
 
 You only need to install the backend you use. The others are lazily imported.
@@ -198,7 +199,8 @@ See the [feature matrix](docs/BACKENDS.md#feature-support-matrix),
 [credential setup](docs/BACKENDS.md#environment-variables), and
 [Monty guide](docs/BACKENDS.md#monty-local-python-execution) and
 [Novita guide](docs/BACKENDS.md#novita-code-interpreter) for adapter details
-(including Novita's native connect lifecycle and protected-service authentication).
+(including Novita's native connect lifecycle and protected-service authentication),
+and the [Orble guide](docs/BACKENDS.md#orble) for its snapshots, forks and suspend.
 
 ## Hosted control plane
 

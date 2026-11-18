@@ -72,7 +72,7 @@ class Sandbox:
     """A live sandbox session with a unified interface across backends.
 
     Supported backends are Local, Safehouse, Docker, Ray, Daytona, Tensorlake,
-    Modal, RunPod, E2B, and boxd.
+    Modal, RunPod, E2B, boxd, and Orble.
 
     Usage:
         with Sandbox("safehouse", timeout_secs=300) as sb:
@@ -182,13 +182,14 @@ class Sandbox:
         # project-scoped name (tensorlake_image), while RunPod uses its
         # SSH-ready default image and runs the preset setup commands there.
         # The ordinary preset OCI images do not run an SSH daemon. boxd
-        # machines boot boxd's own image, so presets run their setup commands
-        # there too. Everything else uses the OCI `image` field.
+        # machines and Orble boxes boot their provider's own image, so presets
+        # run their setup commands there too. Everything else uses the OCI
+        # `image` field.
         preset_image_for_backend = None
         if resolved_preset:
             if backend == "tensorlake":
                 preset_image_for_backend = resolved_preset.tensorlake_image
-            elif backend not in ("runpod", "boxd"):
+            elif backend not in ("runpod", "boxd", "orble"):
                 preset_image_for_backend = resolved_preset.image
         if dockerfile_path is not None:
             # The Dockerfile replaces the preset image; setup commands run.
@@ -318,6 +319,7 @@ class Sandbox:
             "runpod",
             "tensorlake",
             "boxd",
+            "orble",
         }:
             return {}
         script = Path(_resource_probe.__file__).read_text()

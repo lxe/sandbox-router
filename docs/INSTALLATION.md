@@ -58,6 +58,7 @@ pip install 'bespokelabs-sandbox[e2b]'
 pip install 'bespokelabs-sandbox[novita]'      # Novita Code Interpreter
 pip install 'bespokelabs-sandbox[ray]'
 pip install 'bespokelabs-sandbox[boxd]'
+pip install 'bespokelabs-sandbox[orble]'       # Orble, through the e2b SDK (Python 3.11+)
 pip install 'bespokelabs-sandbox[gcp-batch]'   # detached jobs on Google Cloud Batch
 pip install 'bespokelabs-sandbox[all]'
 ```

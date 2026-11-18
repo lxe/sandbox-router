@@ -91,6 +91,15 @@
       "free_tier": "EUR 30 of credits when a payment method is added",
       "pricing_url": "https://boxd.sh/pricing",
       "notes": "Billed per second: vCPU on the machine size while running, RAM on memory in use, disk on bytes written. Storage is $0.000096/GiB-hour."
+    },
+    "orble": {
+      "vcpu_per_hour_usd": 0.00375,
+      "ram_gib_per_hour_usd": 0.001875,
+      "storage_gib_per_month_usd": 0.05,
+      "per_execution_usd": 0.0,
+      "free_tier": null,
+      "pricing_url": "https://orble.tech/pricing",
+      "notes": "Billed per second while running: $0.015 per hour for the smallest box (2 vCPU, 4 GiB). A suspended box is billed for storage only. Boxes come in 2, 4 and 8 vCPU sizes, so a request is billed at the size it rounds up to."
     }
   }
 }

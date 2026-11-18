@@ -70,6 +70,17 @@ def _can_use_boxd() -> bool:
         return False
 
 
+def _can_use_orble() -> bool:
+    if not os.environ.get("ORBLE_API_KEY"):
+        return False
+    try:
+        from e2b import Sandbox  # noqa: F401
+
+        return True
+    except Exception:
+        return False
+
+
 def _can_use_modal() -> bool:
     try:
         import modal  # noqa: F401
@@ -239,6 +250,11 @@ class E2BRegressionTests(_RegressionMixin, unittest.TestCase):
 @unittest.skipUnless(_can_use_boxd(), "boxd SDK or BOXD_API_KEY not available")
 class BoxdRegressionTests(_RegressionMixin, unittest.TestCase):
     backend_name = "boxd"
+
+
+@unittest.skipUnless(_can_use_orble(), "e2b SDK or ORBLE_API_KEY not available")
+class OrbleRegressionTests(_RegressionMixin, unittest.TestCase):
+    backend_name = "orble"
 
 
 @unittest.skipUnless(_can_use_modal(), "Modal SDK not available")
